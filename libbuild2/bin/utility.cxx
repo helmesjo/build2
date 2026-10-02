@@ -97,8 +97,29 @@ namespace build2
           link_member (lmembers {l.a != nullptr, l.s != nullptr}, li.order));
 
         if (!p.second)
-          fail << (p.first == otype::s ? "shared" : "static")
-               << " variant of " << l << " is not available";
+        {
+          // A library resolved outside any project (for example, found on
+          // the system library search paths via a bare name in an
+          // installed .pc file's Libs/Libs.private, see
+          // cc::search_library()) reflects no build configuration: unlike
+          // an ordinary project/bpkg dependency, a missing member here is
+          // not an actionable misconfiguration, just a fact about what is
+          // physically on disk. Fall back to whichever member actually
+          // exists instead of failing, the same leniency pkgconfig.cxx's
+          // hardcoded "known runtime libraries" allowlist already grants a
+          // handful of names by enumeration (e.g. -lSystem/-liconv on Mac
+          // OS, which likewise only ever come in one variant). For a
+          // library that is part of an actual project, the missing member
+          // remains a real, actionable choice, so the strict failure
+          // stays.
+          //
+          if (l.base_scope ().root_scope () == nullptr &&
+              (l.a != nullptr || l.s != nullptr))
+            p.first = l.a != nullptr ? otype::a : otype::s;
+          else
+            fail << (p.first == otype::s ? "shared" : "static")
+                 << " variant of " << l << " is not available";
+        }
 
         r = p.first == otype::s ? static_cast<const target*> (l.s) : l.a;
       }
